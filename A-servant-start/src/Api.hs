@@ -2,7 +2,6 @@ module Api
     ( RestApi
     , server
     , restApi
-    , app
     ) where
 
 
@@ -124,11 +123,5 @@ server = getPerson
 
 restApi :: Proxy RestApi
 restApi = Proxy
-
--- this creates an abstract runnable web application for the server and api we described.
--- we'll run it in app/Main.hs
-
-app :: Application
-app = serve restApi server
 
 -- Now let's head over to app/Main.hs to run this thing. 
