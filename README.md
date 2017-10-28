@@ -39,6 +39,11 @@ Admittedly, it would be neater if I could direct the user to a specific git
 commit of the project instead.  But that would take far too much care in my 
 git commits (or far more git-fu) than I am able to produce. 
 
+# System requirements
+
+You should have ghc installed.  And configured to use with your favourite editor.
+You should also have stack installed.
+
 # Acknowledgements
 
 Many thanks to `alp` and `phaazon` on the #servant IRC channel for informative 
