@@ -58,6 +58,6 @@ and more experienced haskeller.  Therefore I ask the reader to send me suggestio
 
 I think that how you deal with stateful and effectful code is more important to 
 a project than what framework or even language you're using.  Discussions with
-@lexi-lambda have lead me to believe that "mlt-style" provides a coherent way of
+@lexi-lambda have lead me to believe that "mtl-style" provides a coherent way of
 handling such code and making it testable.  I consider my this applet incomplete
 (and my haskell-servant-elm learning) until it includes some testable logic.
