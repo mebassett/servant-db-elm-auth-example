@@ -1,0 +1,41 @@
+name:                A-servant-start
+version:             0.1.0.0
+-- synopsis:
+-- description:
+homepage:            https://github.com/mebassett/servant-db-elm-auth-example
+license:             BSD3
+license-file:        LICENSE
+author:              Matthew Eric Bassett
+maintainer:          meb@triviumre.com
+copyright:           Trivium Real Estate Ltd
+category:            Web
+build-type:          Simple
+extra-source-files:  README.md
+cabal-version:       >=1.10
+
+library
+  hs-source-dirs:      src
+  exposed-modules:     Api
+  build-depends:       base >= 4.7 && < 5
+                     , servant-server
+                     , servant
+                     , aeson
+                     , time
+                     , text
+
+  default-language:    Haskell2010
+  default-extensions:  DataKinds
+                     , TypeOperators
+                     , DeriveGeneric
+
+executable exe
+  hs-source-dirs:      app
+  main-is:             Main.hs
+  ghc-options:         -threaded -rtsopts -with-rtsopts=-N
+  build-depends:       base
+                     , A-servant-start
+                     , wai
+                     , warp
+                     , servant-server
+  default-language:    Haskell2010
+
