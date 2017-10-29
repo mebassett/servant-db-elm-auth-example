@@ -66,3 +66,5 @@ a project than what framework or even language you're using.  Discussions with
 @lexi-lambda have lead me to believe that "mtl-style" provides a coherent way of
 handling such code and making it testable.  I consider my this applet incomplete
 (and my haskell-servant-elm learning) until it includes some testable logic.
+
+@lexi-lambda's mtl example is at https://github.com/lexi-lambda/mtl-style-example
