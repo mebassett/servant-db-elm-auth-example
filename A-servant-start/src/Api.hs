@@ -5,12 +5,13 @@ module Api
     ) where
 
 
-import Data.Aeson -- encoding for, say, json
+import Data.Aeson (ToJSON) -- encoding for, say, json
 import Data.Time (Day, fromGregorian)
 import Data.Text (Text, pack)
-import Servant
-import GHC.Generics
-import Servant.API
+import qualified Servant
+import Servant (Handler)
+import GHC.Generics (Generic)
+import Servant.API ((:>), (:<|>), Get, Capture, JSON)
 
 
 -- This app serves logs from two people trying to survive after "The Event", 
@@ -105,10 +106,10 @@ type RestApi = "person" :> Capture "name" String :> Get '[JSON] Person
 -- see:
 -- http://haskell-servant.readthedocs.io/en/stable/tutorial/Server.html#from-combinators-to-handler-arguments
 
-server :: Server RestApi
+server :: Servant.Server RestApi
 server = getPerson 
-    :<|> getAllPersons
-    :<|> getLogs 
+    Servant.:<|> getAllPersons -- can't figure out how to import these uses directly
+    Servant.:<|> getLogs       -- except by importing a whole module ("import Servant")
     where getPerson :: String -> Handler Person
           getPerson name = return . head $ filter (\p -> personName p == name) persons
 
@@ -121,7 +122,7 @@ server = getPerson
 -- I don't actually know what this does, but it seems to be important.
 -- I don't even understand the syntax.
 
-restApi :: Proxy RestApi
-restApi = Proxy
+restApi :: Servant.Proxy RestApi
+restApi = Servant.Proxy
 
 -- Now let's head over to app/Main.hs to run this thing. 
