@@ -51,6 +51,8 @@ type Msg
     | LoginPasswordSet String
     | LoginRequest Login
     | LoginResponse (Result Http.Error NoContent)
+    | LogoutRequest
+    | LogoutResponse (Result Http.Error NoContent)
     | NullMsg
 
 
@@ -61,7 +63,10 @@ update msg model =
             ( model, sendWithCsrfToken PersonResponse getPerson )
 
         PersonResponse (Ok result) ->
-            ( { model | currentPerson = Just result, logs = [] }, Cmd.none )
+            ( { model | currentPerson = Just result,
+                        login = True,
+                        logs = [] }
+            , Http.send PersonsResponse getPersons )
 
         PersonResponse (Err err) ->
             ( { model | statusMsg = "Server did not like the request. Try logging in?" }
@@ -121,6 +126,18 @@ update msg model =
             in
                 ( model, Cmd.none )
 
+        LogoutRequest ->
+            ( model, Http.send LogoutResponse postLogout )
+
+        LogoutResponse (Ok result) ->
+            ({ model | login = False, currentPerson = Nothing }, Cmd.none)
+
+        LogoutResponse (Err err) ->
+            let _ =
+                Debug.log "Bad logout" err
+            in
+                ( model, Cmd.none )
+
         NullMsg ->
             ( model, Cmd.none )
 
@@ -149,7 +166,7 @@ view model =
                         , br [] []
                         , input [ type_ "password", placeholder "supersecure", onInput LoginPasswordSet ] []
                         , br [] []
-                        , button [ onClick (LoginRequest model.loginCreds) ] [ text "Login" ]
+                        , button [ type_ "button", onClick (LoginRequest model.loginCreds) ] [ text "Login" ]
                         ]
                     ]
 
@@ -175,7 +192,7 @@ view model =
 
         personInfoButton =
             if model.login then
-                [ button [ onClick PersonRequest ] [ text "Get My Info" ] ]
+                [ button [ onClick LogoutRequest ] [ text "Logout" ] ]
             else
                 loginBox
     in
