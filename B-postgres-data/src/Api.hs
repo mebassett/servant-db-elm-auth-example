@@ -11,7 +11,7 @@ import Data.Text (Text, pack)
 import qualified Servant
 import Servant (Handler)
 import GHC.Generics (Generic)
-import Servant.API ((:>), (:<|>), Get, Capture, JSON)
+import Servant.API ((:>), (:<|>)(..), Get, Capture, JSON)
 
 -- three new imports
 
@@ -96,8 +96,8 @@ type RestApi = "person" :> Capture "name" String :> Get '[JSON] Person
 
 server :: Connection -> Servant.Server RestApi
 server conn = getPerson 
-         Servant.:<|> getAllPersons
-         Servant.:<|> getLogs
+         :<|> getAllPersons
+         :<|> getLogs
     where getPerson :: String -> Handler Person
 -- we're using liftIO to get bring the monad into the Handler one the Server is using.
           getPerson name = liftIO $ personFromDb conn name

@@ -8,10 +8,10 @@ module Api
 import Data.Aeson (ToJSON) -- encoding for, say, json
 import Data.Time (Day, fromGregorian)
 import Data.Text (Text, pack)
-import qualified Servant
-import Servant (Handler)
 import GHC.Generics (Generic)
-import Servant.API ((:>), (:<|>), Get, Capture, JSON)
+import qualified Servant
+import Servant (Handler, (:>), (:<|>)(..))
+import Servant.API (Get, Capture, JSON)
 
 
 -- This app serves logs from two people trying to survive after "The Event", 
@@ -108,8 +108,8 @@ type RestApi = "person" :> Capture "name" String :> Get '[JSON] Person
 
 server :: Servant.Server RestApi
 server = getPerson 
-    Servant.:<|> getAllPersons -- can't figure out how to import these uses directly
-    Servant.:<|> getLogs       -- except by importing a whole module ("import Servant")
+    :<|> getAllPersons -- can't figure out how to import these uses directly
+    :<|> getLogs       -- except by importing a whole module ("import Servant")
     where getPerson :: String -> Handler Person
           getPerson name = return . head $ filter (\p -> personName p == name) persons
 
