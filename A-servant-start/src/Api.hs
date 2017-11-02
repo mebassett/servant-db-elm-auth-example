@@ -108,8 +108,8 @@ type RestApi = "person" :> Capture "name" String :> Get '[JSON] Person
 
 server :: Servant.Server RestApi
 server = getPerson 
-    :<|> getAllPersons -- can't figure out how to import these uses directly
-    :<|> getLogs       -- except by importing a whole module ("import Servant")
+    :<|> getAllPersons
+    :<|> getLogs
     where getPerson :: String -> Handler Person
           getPerson name = return . head $ filter (\p -> personName p == name) persons
 
