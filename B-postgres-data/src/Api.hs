@@ -5,17 +5,18 @@ module Api
     ) where
 
 
-import Data.Aeson -- encoding for, say, json
+import Data.Aeson (ToJSON) -- encoding for, say, json
 import Data.Time (Day, fromGregorian)
 import Data.Text (Text, pack)
-import Servant
-import GHC.Generics
-import Servant.API
+import qualified Servant
+import Servant (Handler)
+import GHC.Generics (Generic)
+import Servant.API ((:>), (:<|>)(..), Get, Capture, JSON)
 
 -- three new imports
 
-import Database.PostgreSQL.Simple
-import Database.PostgreSQL.Simple.FromRow
+import Database.PostgreSQL.Simple (Connection, Query, query, query_)
+import Database.PostgreSQL.Simple.FromRow (FromRow, fromRow, field)
 import Control.Monad.Trans (liftIO)
 
 data Person = Person {
@@ -93,10 +94,10 @@ type RestApi = "person" :> Capture "name" String :> Get '[JSON] Person
 -- we'll let app/Main.hs create the connection.
 -- in real life you'd probably want some sort of connection pool.
 
-server :: Connection -> Server RestApi
+server :: Connection -> Servant.Server RestApi
 server conn = getPerson 
          :<|> getAllPersons
-         :<|> getLogs 
+         :<|> getLogs
     where getPerson :: String -> Handler Person
 -- we're using liftIO to get bring the monad into the Handler one the Server is using.
           getPerson name = liftIO $ personFromDb conn name
@@ -107,7 +108,5 @@ server conn = getPerson
           getLogs :: String -> Handler [LogEntry]
           getLogs author = liftIO $ fromDbLogsBy conn author
 
-restApi :: Proxy RestApi
-restApi = Proxy
-
-
+restApi :: Servant.Proxy RestApi
+restApi = Servant.Proxy

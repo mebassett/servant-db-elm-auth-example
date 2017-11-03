@@ -29,6 +29,7 @@ library
                      , servant-auth
                      , servant-auth-server
                      , postgresql-simple
+                     , cookie
 
   default-language:    Haskell2010
   default-extensions:  DataKinds
@@ -36,6 +37,7 @@ library
                      , DeriveGeneric
                      , OverloadedStrings
                      , TemplateHaskell
+                     , FlexibleContexts
 
 executable exe
   hs-source-dirs:      app
@@ -51,6 +53,7 @@ executable exe
                      , wai-logger
                      , postgresql-simple
                      , wai-cors
+                     , cookie
   default-language:    Haskell2010
   default-extensions:  OverloadedStrings
 
@@ -67,6 +70,7 @@ executable code-gen
                      , servant-auth-server
                      , servant-foreign
                      , wl-pprint-text
+                     , cookie
 
   default-language:    Haskell2010
   default-extensions:  OverloadedStrings

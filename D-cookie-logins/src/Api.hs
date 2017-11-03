@@ -6,26 +6,35 @@ module Api
     , Person
     , LogEntry
     , Login
+    , deleteSessionCookie
 
     ) where
 
-import Data.Aeson 
-import Data.Time (Day, fromGregorian)
+import Data.Aeson (ToJSON, FromJSON)
+import Data.Time (Day, UTCTime(UTCTime), fromGregorian)
 import Data.Text (Text, pack)
-import Servant
-import GHC.Generics
-import Servant.API
-import Database.PostgreSQL.Simple
-import Database.PostgreSQL.Simple.FromRow
-import Control.Monad.Trans (liftIO)
-import Network.Wai.Application.Static
-import WaiAppStatic.Types (unsafeToPiece)
 import Data.ByteString (ByteString)
 import Data.FileEmbed (embedFile)
+import Control.Monad.Trans (liftIO)
+import GHC.Generics (Generic)
+
+import qualified Servant
+import Servant ((:>), (:<|>)(..), Server, Handler)
+import Servant.API (Get, PostNoContent, Capture, JSON, NoContent(..),
+                    Header, Headers)
+
+import Database.PostgreSQL.Simple (Connection, Query, query, query_)
+import Database.PostgreSQL.Simple.FromRow (FromRow, fromRow, field)
+import Network.Wai.Application.Static
+import WaiAppStatic.Types (unsafeToPiece)
 
 -- two new imports
-import Servant.Auth.Server
+import Servant.Auth.Server (ToJWT, FromJWT, JWTSettings, CookieSettings,
+                            SetCookie)
+import qualified Servant.Auth.Server as Auth
 import Servant.Auth.Server.SetCookieOrphan ()
+
+import qualified Web.Cookie
 
 data Login = Login { username :: Text
                    , password :: Text} deriving Generic
@@ -86,33 +95,37 @@ fromDbLogsBy conn author = do
 -- The new thing here is the Login point.  It returns two headers for session cookies and 
 -- no content.
 
-type UnprotectedApiElm = "login" :> ReqBody '[JSON] Login
-                                 :> PostNoContent '[JSON] (Headers '[ Header "Set-Cookie" SetCookie
-                                                                    , Header "Set-Cookie" SetCookie]
-                                                                    NoContent)
+type UnprotectedApiElm = "login" :> Servant.ReqBody '[JSON] Login
+                                 :> PostNoContent '[JSON]
+                                     (Headers '[ Header "Set-Cookie" SetCookie
+                                               , Header "Set-Cookie" SetCookie]
+                                       NoContent)
+                    :<|> "logout" :> PostNoContent '[JSON]
+                                     (Headers '[ Header "Set-Cookie" SetCookie ]
+                                       NoContent)
                     :<|> "persons" :> Get '[JSON] [Person]
 
 type ProtectedApi = "person" :> Get '[JSON] Person
                :<|> "logs" :> Get '[JSON] [LogEntry]
 
-type RestApiElm auths = (Auth auths Person :> ProtectedApi) :<|> UnprotectedApiElm
-type RestApi auths = RestApiElm auths :<|> Raw
+type RestApiElm auths = (Auth.Auth auths Person :> ProtectedApi) :<|> UnprotectedApiElm
+type RestApi auths = RestApiElm auths :<|> Servant.Raw
 
 -- We'll make servers for each individual section of the api.  
 -- this one is much like what we've seen before.
 
 protectedServer :: Connection 
-                -> AuthResult Person
+                -> Auth.AuthResult Person
                 -> Server ProtectedApi
-protectedServer conn (Authenticated person) = getPerson 
-                                         :<|> getLogs
+protectedServer conn (Auth.Authenticated person) = getPerson
+                                              :<|> getLogs
     where getPerson :: Handler Person
           getPerson = liftIO $ fromDbPerson conn $ personName person
 
           getLogs :: Handler [LogEntry]
           getLogs = liftIO $ fromDbLogsBy conn $ personName person
 
-protectedServer _ _ = throwAll err401
+protectedServer _ _ = Auth.throwAll Servant.err401
 
 -- things get exciting here.  I have a monad checking for a login in the db
 -- and possibly returning back the right Person.  
@@ -129,6 +142,14 @@ getLoginFromDb conn (Login username password) = do
         [] -> return Nothing
         _ -> return Nothing
 
+logout :: CookieSettings
+       -> Handler (Headers '[Header "Set-Cookie" SetCookie]
+                    NoContent)
+logout cs = do
+  applyCookies <- liftIO $ deleteSessionCookie cs
+  return $ applyCookies NoContent
+
+
 -- this monad is serving the login requests.
 -- it's using acceptLogin from servant-auth. 
 
@@ -142,13 +163,13 @@ checkLogin :: CookieSettings
 checkLogin cs jwts conn login = do
     possiblePerson <- liftIO $ getLoginFromDb conn login
     case possiblePerson of
-        Nothing -> throwError err401
+        Nothing -> Servant.throwError Servant.err401
         Just person -> do
-            mApplyCookies <- liftIO $ acceptLogin cs jwts person
+            mApplyCookies <- liftIO $ Auth.acceptLogin cs jwts person
             case mApplyCookies of
                 Just applyCookies -> do
                     return $ applyCookies NoContent
-                _ -> throwError err401
+                _ -> Servant.throwError Servant.err401
 
 -- unlike the simpler server def, now we have to pull in cookie and jwt settings.
 
@@ -156,9 +177,11 @@ unprotectedServer :: CookieSettings
                   -> JWTSettings 
                   -> Connection
                   -> Server UnprotectedApiElm 
-unprotectedServer cs jwst conn = loginHandler
+unprotectedServer cs jwts conn = loginHandler
+                            :<|> logoutHandler
                             :<|> getPersons
-    where loginHandler = checkLogin cs jwst conn 
+    where loginHandler = checkLogin cs jwts conn
+          logoutHandler = logout cs
 
           getPersons :: Handler [Person]
           getPersons = liftIO $ fromDbAllPersons conn 
@@ -166,7 +189,7 @@ unprotectedServer cs jwst conn = loginHandler
 staticFiles :: [(FilePath, ByteString)]
 staticFiles = [("main.html", $(embedFile "elm/main.html"))]
 
-staticHandler = serveDirectoryWith $
+staticHandler = Servant.serveDirectoryWith $
   (defaultWebAppSettings $ error "unused") 
     { ssLookupFile = ssLookupFile $ embeddedSettings staticFiles
     ,  ssIndices = map unsafeToPiece ["main.html"]}
@@ -181,4 +204,21 @@ server cs jwts conn = (     protectedServer conn
                        :<|> unprotectedServer cs jwts conn)
                       :<|> staticHandler
 
-restApi = Proxy :: Proxy (RestApi '[Cookie])
+restApi = Servant.Proxy :: Servant.Proxy (RestApi '[Auth.Cookie])
+
+
+-- Functions that seem like they should be provided by Servant.Auth, but aren't.
+-- I'm not sure whether deleteSessionCookie should also set a CSRF cookie.
+
+expiredSessionCookie :: CookieSettings -> SetCookie
+expiredSessionCookie cs = Web.Cookie.def
+  { Web.Cookie.setCookieName = Auth.sessionCookieName cs
+  , Web.Cookie.setCookieValue = ""
+  , Web.Cookie.setCookieExpires = Just $ UTCTime (fromGregorian 2000 1 1) 0
+  , Web.Cookie.setCookiePath = Auth.cookiePath cs
+  }
+
+deleteSessionCookie :: Servant.AddHeader "Set-Cookie" SetCookie
+                                         response withCookie
+                    => CookieSettings -> IO (response -> withCookie)
+deleteSessionCookie cs = return $ Servant.addHeader $ expiredSessionCookie cs
