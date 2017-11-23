@@ -6,6 +6,7 @@ module Api
 
 
 import Data.Aeson (ToJSON) -- encoding for, say, json
+import Data.Char (toLower)
 import Data.Time (Day, fromGregorian)
 import Data.Text (Text, pack)
 import GHC.Generics (Generic)
@@ -111,13 +112,13 @@ server = getPerson
     :<|> getAllPersons
     :<|> getLogs
     where getPerson :: String -> Handler Person
-          getPerson name = return . head $ filter (\p -> personName p == name) persons
+          getPerson name = return . head $ filter (\p -> map toLower (personName p) == name) persons
 
           getAllPersons :: Handler [Person]
           getAllPersons = return persons
 
           getLogs :: String -> Handler [LogEntry]
-          getLogs author = return $ filter (\l -> (personName $ logAuthor l)== author) logs
+          getLogs author = return $ filter (\l -> map toLower (personName $ logAuthor l) == author) logs
 
 -- I don't actually know what this does, but it seems to be important.
 -- I don't even understand the syntax.
