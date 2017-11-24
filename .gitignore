@@ -1,2 +1,6 @@
+*~
 *.swp
 .stack-work
+elm-stuff
+RestApi.elm
+main.html
