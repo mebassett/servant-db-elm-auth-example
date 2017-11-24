@@ -30,6 +30,7 @@ library
                      , TypeOperators
                      , DeriveGeneric
                      , OverloadedStrings
+                     , RankNTypes
 
 executable exe
   hs-source-dirs:      app

@@ -6,7 +6,7 @@ import Network.Wai
 import Network.Wai.Handler.Warp
 import System.Environment (lookupEnv)
 import Data.Maybe (fromMaybe)
-import Data.Pool (Pool, createPool)
+import Data.Pool (Pool, createPool, withResource)
 import qualified Data.ByteString.Char8 as B
 import Database.PostgreSQL.Simple as DB
 
@@ -24,4 +24,6 @@ main = do
   -- See https://hackage.haskell.org/package/resource-pool-0.2.3.2/docs/Data-Pool.html
   pool <- createPool (DB.connectPostgreSQL connStr) DB.close 1 10 10
 
-  run 8081 $ serve restApi $ server pool
+  -- run 8081 $ serve restApi $ server1 pool
+  -- run 8081 $ serve restApi $ server2 pool
+  run 8081 $ serve restApi $ server3 (withResource pool)

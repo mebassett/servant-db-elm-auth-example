@@ -1,6 +1,8 @@
 module Api 
     ( RestApi
     , server1
+    , server2
+    , server3
     , restApi
     ) where
 
@@ -66,13 +68,12 @@ type RestApi = "person" :> Capture "name" String :> Get '[JSON] Person
           :<|> "persons" :> Get '[JSON] [Person]
           :<|> "logs" :> Capture "author" String :> Get '[JSON] [LogEntry]  
 
--- The direct option is, instead of taking a Connection, we take a pool and grab
--- a connection for it in each handler.
-
-server :: Pool Connection -> Servant.Server RestApi
-server pool = getPerson
-         :<|> getAllPersons
-         :<|> getLogs
+-- The most direct change is: instead of taking a Connection, we take a pool and
+-- grab a connection for it in each handler.
+server1 :: Pool Connection -> Servant.Server RestApi
+server1 pool = getPerson
+          :<|> getAllPersons
+          :<|> getLogs
     where getPerson :: String -> Handler Person
           getPerson name = withResource pool $ \conn ->
             liftIO $ personFromDb conn name
@@ -83,6 +84,51 @@ server pool = getPerson
 
           getLogs :: String -> Handler [LogEntry]
           getLogs author = withResource pool $ \conn ->
+            liftIO $ fromDbLogsBy conn author
+
+-- We can factor out `withResource pool`.
+server2 :: Pool Connection -> Servant.Server RestApi
+server2 pool = getPerson
+          :<|> getAllPersons
+          :<|> getLogs
+    where getPerson :: String -> Handler Person
+          getPerson name = withPool $ \conn ->
+            liftIO $ personFromDb conn name
+
+          getAllPersons :: Handler [Person]
+          getAllPersons = withPool $ \conn ->
+            liftIO $ fromDbAllPersons conn
+
+          getLogs :: String -> Handler [LogEntry]
+          getLogs author = withPool $ \conn ->
+            liftIO $ fromDbLogsBy conn author
+
+          withPool :: (Connection -> Handler a) -> Handler a
+          withPool = withResource pool
+
+-- We can also move `withPool` into the argument instead of the `where`. This
+-- isn't a big gain here, but if you have nested servers (as in
+-- e.g. D-cookie-logins) you don't need to implement `withPool` in all of them.
+--
+-- I don't particularly understand this. I think that without the `forall` the
+-- compiler thinks `a` is a single specific type. It doesn't like that `a` gets
+-- specified as `Person` in `getPerson`, and also doesn't like that the other
+-- handlers specify `a` as something else.
+server3 :: (forall a. (Connection -> Handler a) -> Handler a)
+        -> Servant.Server RestApi
+server3 withPool = getPerson
+              :<|> getAllPersons
+              :<|> getLogs
+    where getPerson :: String -> Handler Person
+          getPerson name = withPool $ \conn ->
+            liftIO $ personFromDb conn name
+
+          getAllPersons :: Handler [Person]
+          getAllPersons = withPool $ \conn ->
+            liftIO $ fromDbAllPersons conn
+
+          getLogs :: String -> Handler [LogEntry]
+          getLogs author = withPool $ \conn ->
             liftIO $ fromDbLogsBy conn author
 
 restApi :: Servant.Proxy RestApi
