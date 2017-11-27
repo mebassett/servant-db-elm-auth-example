@@ -10,6 +10,10 @@ import Data.Pool (Pool, createPool, withResource)
 import qualified Data.ByteString.Char8 as B
 import Database.PostgreSQL.Simple as DB
 
+connectAndPrint :: B.ByteString -> IO Connection
+connectAndPrint connStr = do putStrLn "making a new connection"
+                             DB.connectPostgreSQL connStr
+
 main :: IO ()
 main = do
   dbName <- fromMaybe "haskell-stuff" <$> lookupEnv "SERVANT_EXAMPLE_DB"
@@ -22,8 +26,9 @@ main = do
   -- 4. NominalDiffTime: time a connection can be idle before closing it
   -- 5. Int: max number of open connections per stripe
   -- See https://hackage.haskell.org/package/resource-pool-0.2.3.2/docs/Data-Pool.html
-  pool <- createPool (DB.connectPostgreSQL connStr) DB.close 1 10 10
+  pool <- createPool (connectAndPrint connStr) DB.close 1 10 10
 
   -- run 8081 $ serve restApi $ server1 pool
   -- run 8081 $ serve restApi $ server2 pool
-  run 8081 $ serve restApi $ server3 (withResource pool)
+  -- run 8081 $ serve restApi $ server3 (withResource pool)
+  run 8081 $ serve restApi $ server4 pool

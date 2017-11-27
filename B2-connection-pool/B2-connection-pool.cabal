@@ -17,8 +17,8 @@ library
   hs-source-dirs:      src
   exposed-modules:     Api
   build-depends:       base >= 4.7 && < 5
-                     , servant-server
-                     , servant
+                     , servant-server == 0.12
+                     , servant == 0.12
                      , aeson
                      , time
                      , text
@@ -30,7 +30,8 @@ library
                      , TypeOperators
                      , DeriveGeneric
                      , OverloadedStrings
-                     , RankNTypes
+                     , Rank2Types
+                     , GeneralizedNewtypeDeriving
 
 executable exe
   hs-source-dirs:      app
@@ -40,7 +41,7 @@ executable exe
                      , B2-connection-pool
                      , wai
                      , warp
-                     , servant-server
+                     , servant-server == 0.12
                      , postgresql-simple
                      , resource-pool
                      , bytestring

@@ -3,6 +3,7 @@ module Api
     , server1
     , server2
     , server3
+    , server4
     , restApi
     ) where
 
@@ -15,8 +16,10 @@ import GHC.Generics (Generic)
 import Database.PostgreSQL.Simple (Connection, Query, query, query_)
 import Database.PostgreSQL.Simple.FromRow (FromRow, fromRow, field)
 import Control.Monad.Trans (liftIO)
+import qualified Control.Monad.Reader as R
 
 import qualified Servant
+import qualified Servant.Server
 import Servant (Handler)
 import Servant.API ((:>), (:<|>)(..), Get, Capture, JSON)
 
@@ -92,44 +95,93 @@ server2 pool = getPerson
           :<|> getAllPersons
           :<|> getLogs
     where getPerson :: String -> Handler Person
-          getPerson name = withPool $ \conn ->
+          getPerson name = withConn $ \conn ->
             liftIO $ personFromDb conn name
 
           getAllPersons :: Handler [Person]
-          getAllPersons = withPool $ \conn ->
+          getAllPersons = withConn $ \conn ->
             liftIO $ fromDbAllPersons conn
 
           getLogs :: String -> Handler [LogEntry]
-          getLogs author = withPool $ \conn ->
+          getLogs author = withConn $ \conn ->
             liftIO $ fromDbLogsBy conn author
 
-          withPool :: (Connection -> Handler a) -> Handler a
-          withPool = withResource pool
+          withConn :: (Connection -> Handler a) -> Handler a
+          withConn = withResource pool
 
--- We can also move `withPool` into the argument instead of the `where`. This
--- isn't a big gain here, but if you have nested servers (as in
--- e.g. D-cookie-logins) you don't need to implement `withPool` in all of them.
+-- We can also move `withConn` into the argument instead of the `where`. This
+-- isn't a big gain here, but if you have nested servers (as in e.g.
+-- D-cookie-logins) you don't need to implement `withPool` in all of them.
 --
 -- I don't particularly understand this. I think that without the `forall` the
 -- compiler thinks `a` is a single specific type. It doesn't like that `a` gets
 -- specified as `Person` in `getPerson`, and also doesn't like that the other
 -- handlers specify `a` as something else.
+--
+-- Requires language extension `Rank2Types` or (more powerful) `RankNTypes`, to
+-- allow `forall` in this context.
 server3 :: (forall a. (Connection -> Handler a) -> Handler a)
         -> Servant.Server RestApi
-server3 withPool = getPerson
+server3 withConn = getPerson
               :<|> getAllPersons
               :<|> getLogs
     where getPerson :: String -> Handler Person
-          getPerson name = withPool $ \conn ->
+          getPerson name = withConn $ \conn ->
             liftIO $ personFromDb conn name
 
           getAllPersons :: Handler [Person]
-          getAllPersons = withPool $ \conn ->
+          getAllPersons = withConn $ \conn ->
             liftIO $ fromDbAllPersons conn
 
           getLogs :: String -> Handler [LogEntry]
-          getLogs author = withPool $ \conn ->
+          getLogs author = withConn $ \conn ->
             liftIO $ fromDbLogsBy conn author
+
+
+-- Finally we can provide `withConn` from a monad of our own creation. This adds
+-- a lot of complexity outside the server, and doesn't save much within. But the
+-- general pattern is powerful, and could be used to add other monady things at
+-- the same time.
+--
+-- Requires language extension `GeneralizedNewtypeDeriving`, and Servant 0.12.
+class MonadDB m where
+  withConn :: (Connection -> m a) -> m a
+
+newtype H a = H { runH :: R.ReaderT (Pool Connection) Handler a }
+  deriving (Functor, Applicative, Monad, R.MonadIO)
+
+instance MonadDB H where
+  withConn f = H $ do
+    pool <- R.ask
+    withResource pool $ \conn -> runH (f conn)
+
+hToHandler :: Pool Connection -> H a -> Handler a
+hToHandler p h = R.runReaderT (runH h) p
+
+server4H :: Servant.ServerT RestApi H
+server4H = getPerson
+      :<|> getAllPersons
+      :<|> getLogs
+  where getPerson :: String -> H Person
+        getPerson name = withConn $ \conn ->
+          liftIO $ personFromDb conn name
+
+        getAllPersons :: H [Person]
+        getAllPersons = withConn $ \conn ->
+          liftIO $ fromDbAllPersons conn
+
+        getLogs :: String -> H [LogEntry]
+        getLogs author = withConn $ \conn ->
+          liftIO $ fromDbLogsBy conn author
+
+server4 :: Pool Connection -> Servant.Server RestApi
+server4 pool = Servant.hoistServer restApi (hToHandler pool) server4H
+
+-- Note something that *doesn't* seem to work. You can't have
+--     server conn = ...
+-- and then call `withResource pool server`. The server isn't of the right
+-- type. It's possible someone could get that to work, but I don't know how the
+-- pool would behave if so.
 
 restApi :: Servant.Proxy RestApi
 restApi = Servant.Proxy
