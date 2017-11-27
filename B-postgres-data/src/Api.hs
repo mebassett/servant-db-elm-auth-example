@@ -27,16 +27,53 @@ data Person = Person {
 } deriving Generic
 instance ToJSON Person
 
--- For types that relate to something in posgres, we can implement ToRow and FromRow
--- to make the transfer easier.  We have to specify the transformation manually by
--- implementing the fromRow function.
+-- For types that relate to something in posgres, we can implement ToRow and
+-- FromRow to make the transfer easier.
 --
--- I don't know what the <$> and <*> things do.
+-- <$> is a synonym for fmap: `a <$> b` is the same as
+--     (b >>= return . a)
+-- or
+--     do b' <- b
+--        return $ a b'
+--
+-- <*> is sequential application: `a <*> b` is the same as
+--     a >>= (\a' -> (b >>= return . a'))
+-- or
+--     do a' <- a
+--        b' <- b
+--        return $ a' b'
+--
+-- Then `a <$> b <*> c` (more explicitly, `(a <$> b) <*> c`) is the same as
+--     do ab' <- do b' <- b
+--                  return $ a b'
+--        c' <- c
+--        return $ ab' c'
+-- which simplifies to
+--     do b' <- b
+--        c' <- c
+--        return $ a b' c'
+--
+-- And `a <$> b <*> c <*> d` is the same as
+--     do abc' <- do b' <- b
+--                   c' <- c
+--                   return $ a b' c'
+--        d' <- d
+--        return $ abc' d'
+-- which simplifies to
+--     do b' <- b
+--        c' <- c
+--        d' <- d
+--        return $ a b' c' d'
+--
+-- In this case, we don't actually need to implement `fromRow`, since `FromRow`
+-- has a generic implementation. So simply
+--     instance FromRow Person
+-- would have the same effect.
 --
 -- see https://hackage.haskell.org/package/postgresql-simple-0.5.3.0/docs/Database-PostgreSQL-Simple.html
 
 instance FromRow Person where
-    fromRow = Person <$> field 
+    fromRow = Person <$> field
                      <*> field
                      <*> field
                      <*> field
